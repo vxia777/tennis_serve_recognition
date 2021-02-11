@@ -5,12 +5,12 @@ Contains functionality for preprocessing video data files
 
 """
 
-from keras.applications.inception_v3 import preprocess_input #, InceptionV3
+from keras.applications.inception_v3 import preprocess_input
 from keras.preprocessing import image
 from keras.utils import to_categorical
 
 import numpy as np
-import cv2
+import cv2 as cv
 import random
 import csv
 import sys
@@ -148,17 +148,24 @@ class DataSet():
 		vidfilepath = os.path.join('VIDEO_RGB', sample[1], sample[2] + '.avi')
 
 		# process the video and extract the sequence of frames
-		vidcap = cv2.VideoCapture(vidfilepath)
+		vidcap = cv.VideoCapture(vidfilepath)
 		
 		frames = []
 		
 		# extract frames
 		while True:
-			success, image = vidcap.read()
-			if not success:
+			ret, frame = vidcap.read()
+			if not ret:
 				break
-				
-			img_RGB = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+			# # data augmentation on frames (for additional data)
+			# frame_vertflip = cv.flip(frame, 0)
+			# frame_horzflip = cv.flip(frame, 1)
+			# frame_bothaxesflip = cv.flip(frame, -1)
+			# frame_rotate = cv.transpose(frame)
+
+			# openCV package defaults to BGR ordering --> switch to RGB
+			img_RGB = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
 
 			frames.append(img_RGB)
 
@@ -191,7 +198,7 @@ class DataSet():
 		# print(img.shape)
 		# print("------------------------------------------------------------------------------------")
 		# print("Dimensions after resizing first raw frame")
-		# img = cv2.resize(img, self.imagenet_widthheight)
+		# img = cv.resize(img, self.imagenet_widthheight)
 		# print(img.shape)
 		# print("------------------------------------------------------------------------------------")
 		# print("Dimensions after running img_to_array() on 1st raw frame")
@@ -216,13 +223,13 @@ class DataSet():
 		sequence = []
 		for img in frames:
 			# resize frame to fit CNN model input (299,299,3)
-			img = cv2.resize(img, self.cnnmod_inputdim, interpolation = cv2.INTER_AREA)
+			img = cv.resize(img, self.cnnmod_inputdim, interpolation = cv.INTER_AREA)
 			x = image.img_to_array(img)
 			x = np.expand_dims(x, axis=0)
 			x = preprocess_input(x)
 			features = self.cnn_model.predict(x)
 
-			sequence.append(features[0])  # only take first dimension
+			sequence.append(features[0])  # get the relevant 1-d np array (features is 2-d)
 
 		np.save(savepath, sequence)
 		

@@ -1,7 +1,7 @@
 """
-Functions for preparing, processing, and manipulating data.
-This file was adapted from https://github.com/harvitronix/five-video-classification-methods
-to work with our dataset and approach to training an LRCNN model.
+Functions for preparing, processing, and manipulating video data
+This file was adapted from https://github.com/harvitronix/five-video-classification-methods.
+Contains functionality for preprocessing video data files
 
 """
 
@@ -32,8 +32,8 @@ class threadsafe_iterator:
 	def __iter__(self):
 		return self
 
-	# def __next__(self):
-	def next(self):  # NOTE: Python 2.x uses next(), Python 3.x uses __next__()
+	# def next(self):
+	def __next__(self):  # NOTE: Python 2.x uses next(), Python 3.x uses __next__()
 		with self.lock:
 			return next(self.iterator)
 
@@ -46,12 +46,17 @@ def threadsafe_generator(func):
 
 class DataSet():
 
-	def __init__(self, cnn_model, 
-		seq_length=16, imagenet_widthheight=(299, 299)):
+	def __init__(self,
+				 cnn_model,
+				 seq_length=16,
+				 seq_filepath=os.path.join('data', 'sequences'),
+				 cnnmod_inputdim=(299, 299),
+				 ):
 		""" Constructor for DataSet() class
-		cnn_model = keras Model, used for generating sequences
-		seq_length = (int) the number of frames to consider
-		class_limit = (int) number of classes to limit the data to.
+		cnn_model = Keras Model, used for generating sequences from the video input data
+		seq_length = (int) the number of frames to consider in a sequence
+		seq_filepath = filepath of where the sequence data should be saved/stored
+		cnnmod_inputdim = input dimension of the Keras model e.g. (299, 299) for Inception v3
 		"""
 
 		# InceptionV3 model will be used to extract features from frames
@@ -60,8 +65,9 @@ class DataSet():
 		# length of each video in the dataset (default downsampled to 16 frames)
 		self.seq_length = seq_length
 
-		# directory containing saved .npy sequences
-		self.sequence_path = os.path.join('data', 'sequences')
+		# directory containing saved .npy sequences -- must create a data/sequences directory in the
+		# current directory
+		self.seq_filepath = seq_filepath
 
 		# obtain the dataset info from data_file.csv
 		self.data = self.get_data()
@@ -69,15 +75,16 @@ class DataSet():
 		# obtain info on the classes from self.data
 		self.classes = self.get_classes()
 
-		# FOR NOW, THE FOLLOWING ARE NOT BEING USED
-		self.imagenet_widthheight = imagenet_widthheight  # for potentially changing image sizes down the road
-
-		# self.class_limit = class_limit  # for potentially limiting number of classes
+		# the required input dimensions of the CNN model
+		self.cnnmod_inputdim = cnnmod_inputdim  # for potentially changing image sizes down the road
 
 
 	@staticmethod
 	def get_data():
-		"""Load our data from file."""
+		"""
+		Load our data from file. Must be contained in a data folder in the same directory and be
+		named data_file.csv --> data/data_file.csv
+		"""
 		with open(os.path.join('data', 'data_file.csv'), 'r') as fin:
 			reader = csv.reader(fin)
 			data = list(reader)
@@ -94,7 +101,7 @@ class DataSet():
 			if item[1] not in classes:
 				classes.append(item[1])
 
-		classes = sorted(classes)  # sorted, but prob not necessary
+		classes = sorted(classes)  # class labels sorted in alphabetical order
 
 		return classes
 
@@ -115,31 +122,33 @@ class DataSet():
 	# train and test are lists, with each element a line in csv file
 	def split_dataset(self):
 		train = []
-		validation = []
+		dev = []
 		test = []
 		for item in self.data:
 			if item[0] == 'train':
 				train.append(item)
 			elif item[0] == 'validation':
-				validation.append(item)
+				dev.append(item)
 			else:
 				test.append(item)
-		return train, validation, test
+		return train, dev, test
 
 
 	def get_frames_for_sample(self, sample):
 		"""
 		This function, used in extract_seq_features(), obtains a list of
 		frames from a given sample video. Each frame is a N x M x 3 array.
+		The raw video .avi files must be saved in a VIDEO_RGB folder followed by the class subfolder
+		e.g. "VIDEO_RGB/backhand/p1_backhand_s1.avi"
+
+		sample := a row in the data_file.csv of format
+		[type of data (train/dev/test), class, video_filename without .avi]
 		"""
 
-		# e.g. "data/train/backhand/p1_backhand_s1.avi"
-		# path = os.path.join('data', sample[0], sample[1], sample[2] + ".avi")
+		vidfilepath = os.path.join('VIDEO_RGB', sample[1], sample[2] + '.avi')
 
-		# e.g. "VIDEO_RGB/backhand/p1_backhand_s1.avi"
-		path = os.path.join('VIDEO_RGB', sample[1], sample[2] + '.avi')
-
-		vidcap = cv2.VideoCapture(path)
+		# process the video and extract the sequence of frames
+		vidcap = cv2.VideoCapture(vidfilepath)
 		
 		frames = []
 		
@@ -154,7 +163,7 @@ class DataSet():
 			frames.append(img_RGB)
 
 			
-		# downsample if desired and necessary
+		# downsample if desired/necessary
 		if self.seq_length < len(frames):
 			skip = len(frames) // self.seq_length
 			frames = [frames[i] for i in range(0, len(frames), skip)]
@@ -169,9 +178,10 @@ class DataSet():
 		a sequence if not already on disc, and saves as a .npy file.
 		"""
 		
-		path = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(self.seq_length) + \
+		savepath = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(self.seq_length) + \
 		'-features')
-		
+
+		# sample the sequence of frames from the video
 		frames = self.get_frames_for_sample(sample)
 
 		# # TODO: DEBUGGINGG----------------------------
@@ -201,19 +211,20 @@ class DataSet():
 		# print("Testing cnn_model.predict()")
 		# features = self.cnn_model.predict(x)  # for some reason not on graph?
 		# sys.exit()
+
+		# preprocess frames and feed into the CNN model
 		sequence = []
 		for img in frames:
-			# resize to fit imagenet input (299,299,3) and maintain aspect ratio
-
-			img = cv2.resize(img, self.imagenet_widthheight, interpolation = cv2.INTER_AREA)
+			# resize frame to fit CNN model input (299,299,3)
+			img = cv2.resize(img, self.cnnmod_inputdim, interpolation = cv2.INTER_AREA)
 			x = image.img_to_array(img)
 			x = np.expand_dims(x, axis=0)
 			x = preprocess_input(x)
-			features = self.cnn_model.predict(x)  # for some reason not on graph?
+			features = self.cnn_model.predict(x)
 
 			sequence.append(features[0])  # only take first dimension
 
-		np.save(path, sequence)
+		np.save(savepath, sequence)
 		
 		return sequence
 
@@ -230,7 +241,7 @@ class DataSet():
 
 		filename = sample[2]
 		
-		path = os.path.join(self.sequence_path, sample[1], filename + '-' + str(self.seq_length) + \
+		path = os.path.join(self.seq_filepath, sample[1], filename + '-' + str(self.seq_length) + \
 			'-features.npy')
 		
 		# return saved numpy sequence

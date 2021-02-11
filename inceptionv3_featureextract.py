@@ -32,9 +32,6 @@ if __name__ == "__main__":
     seq_length = 16 # sequence length of frames to downsample each video to
     dataset = DataSet(cnn_model)
 
-    print(len(dataset.data))
-    sys.exit()
-
     # generate InceptionV3 features and time it
     tic = time.time()
 

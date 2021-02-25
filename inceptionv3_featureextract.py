@@ -35,7 +35,7 @@ if __name__ == "__main__":
     # generate InceptionV3 features and time it
     tic = time.time()
 
-    for ind, sample in enumerate(dataset.data[0:50]):
+    for ind, sample in enumerate(dataset.data):
         path = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(seq_length) + '-features.npy')
 
         if os.path.isfile(path):

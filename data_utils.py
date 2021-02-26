@@ -1,7 +1,7 @@
 """
 Functions for preparing, processing, and manipulating video data
 This file was adapted from https://github.com/harvitronix/five-video-classification-methods.
-Contains functionality for preprocessing video data files
+Contains functionality for preprocessing video data files and generating features from frames
 
 """
 
@@ -22,28 +22,6 @@ import os.path
 import threading
 import operator
 
-
-# -------- FUNCTIONS FOR SAFE MULTI-THREADING ----------- #
-class threadsafe_iterator:
-    def __init__(self, iterator):
-        self.iterator = iterator
-        self.lock = threading.Lock()
-
-    def __iter__(self):
-        return self
-
-    # def next(self):
-    def __next__(self):  # NOTE: Python 2.x uses next(), Python 3.x uses __next__()
-        with self.lock:
-            return next(self.iterator)
-
-def threadsafe_generator(func):
-    """Decorator"""
-    def gen(*a, **kw):
-        return threadsafe_iterator(func(*a, **kw))
-    return gen
-
-
 class DataSet():
 
     def __init__(self,
@@ -53,10 +31,10 @@ class DataSet():
                  cnnmod_inputdim=(299, 299),
                  ):
         """ Constructor for DataSet() class
-        cnn_model = Keras Model, used for generating sequences from the video input data
-        seq_length = (int) the number of frames to consider in a sequence
+        cnn_model = Keras CNN Model, used for generating sequences from the video input data
+        seq_length = (int) the number of frames to downsample the video to
         seq_filepath = filepath of where the sequence data should be saved/stored
-        cnnmod_inputdim = input dimension of the Keras model e.g. (299, 299) for Inception v3
+        cnnmod_inputdim = input dimension of image for the CNN model e.g. (299, 299) for InceptionV3
         """
 
         # InceptionV3 model will be used to extract features from frames
@@ -69,7 +47,7 @@ class DataSet():
         # current directory
         self.seq_filepath = seq_filepath
 
-        # obtain the dataset info from data_file.csv
+        # obtain the dataset info from data_file.csv (outputted from dataprep_split.py)
         self.data = self.get_data()
 
         # obtain info on the classes from self.data
@@ -84,6 +62,7 @@ class DataSet():
         """
         Load our data from file. Must be contained in a data folder in the same directory and be
         named data_file.csv --> data/data_file.csv
+        :return: info (columns) of input data csv file
         """
         with open(os.path.join('data', 'data_file.csv'), 'r') as fin:
             reader = csv.reader(fin)
@@ -93,8 +72,8 @@ class DataSet():
 
     def get_classes(self):
         """
-        This function creates a list of classes from data_file.csv.
-        NOTE: no class limit applied here, b/c we only have 12 classes to work with.
+        This function creates a list of classes from data_file.csv, which is outputted from dataprep_split.py
+        :return: sorted list of class labels
         """
         classes = []
         for item in self.data:
@@ -108,7 +87,8 @@ class DataSet():
 
     def get_class_one_hot(self, class_label):
         """
-        This function returns a one-hot vector corresponding to the class label.
+        This function does a one-hot encoding corresponding to the class label.
+        :return: one-hot vector corresponding to the input class label
         """
         label = self.classes.index(class_label)
 
@@ -119,8 +99,11 @@ class DataSet():
         return label_hot
 
 
-    # train and test are lists, with each element a line in csv file
     def split_dataset(self):
+        """
+        Function to explicitly split out lists of train/dev/test data
+        :return: train/dev/test data lists
+        """
         train = []
         dev = []
         test = []
@@ -137,12 +120,14 @@ class DataSet():
     def get_frames_for_sample(self, sample):
         """
         This function, used in extract_seq_features(), obtains a list of
-        frames from a given sample video. Each frame is a N x M x 3 array.
+        frames from a given sample video. Each frame is a 3-d matrix.
         The raw video .avi files must be saved in a VIDEO_RGB folder followed by the class subfolder
         e.g. "VIDEO_RGB/backhand/p1_backhand_s1.avi"
 
         sample := a row in the data_file.csv of format
         [type of data (train/dev/test), class, video_filename without .avi]
+
+        :return: list of downsampled frames in RGB-format
         """
 
         vidfilepath = os.path.join('VIDEO_RGB', sample[1], sample[2] + '.avi')
@@ -158,7 +143,7 @@ class DataSet():
             if not ret:
                 break
 
-            # # data augmentation on frames (for additional data)
+            # data augmentation on frames (for additional data)
             # frame_vertflip = cv.flip(frame, 0)
             # frame_horzflip = cv.flip(frame, 1)
             # frame_bothaxesflip = cv.flip(frame, -1)
@@ -169,8 +154,7 @@ class DataSet():
 
             frames.append(img_RGB)
 
-
-        # downsample if desired/necessary
+        # downsample
         if self.seq_length < len(frames):
             skip = len(frames) // self.seq_length
             frames = [frames[i] for i in range(0, len(frames), skip)]
@@ -182,7 +166,9 @@ class DataSet():
     def extract_seq_features(self, sample):
         """
         This function, used in get_extracted_sequence(), returns
-        a sequence if not already on disc, and saves as a .npy file.
+        a sequence of CNN-generated features for frames and saves to .npy file
+
+        :return: sequence of CNN-generated features from the input frame pixels
         """
 
         savepath = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(self.seq_length) + \
@@ -191,44 +177,19 @@ class DataSet():
         # sample the sequence of frames from the video
         frames = self.get_frames_for_sample(sample)
 
-        # # TODO: DEBUGGINGG----------------------------
-        # print(len(frames))
-        # print("Dimensions of first raw frame")
-        # img = frames[0]
-        # print(img.shape)
-        # print("------------------------------------------------------------------------------------")
-        # print("Dimensions after resizing first raw frame")
-        # img = cv.resize(img, self.imagenet_widthheight)
-        # print(img.shape)
-        # print("------------------------------------------------------------------------------------")
-        # print("Dimensions after running img_to_array() on 1st raw frame")
-        # x = image.img_to_array(img)
-        # print(x.shape)
-        # print("------------------------------------------------------------------------------------")
-        # print("Dimensions after running expanding dim on 1st raw frame")
-        # x = np.expand_dims(x, axis=0)
-        # print(x.shape)
-        # print("------------------------------------------------------------------------------------")
-        # print("")
-        # print("Dimensions after preprocess_input() on 1st raw frame")
-        # x = preprocess_input(x)
-        # print(x.shape)
-        # print("------------------------------------------------------------------------------------")
-        # print("")
-        # print("Testing cnn_model.predict()")
-        # features = self.cnn_model.predict(x)  # for some reason not on graph?
-        # sys.exit()
-
         # preprocess frames and feed into the CNN model
         sequence = []
         for img in frames:
-            # resize frame to fit CNN model input (299,299,3)
+            # reshape raw frame to fit CNN model input (299,299,3)
             img = cv.resize(img, self.cnnmod_inputdim, interpolation = cv.INTER_AREA)
+
+            # reshape frame for InceptionV3 model input
             x = image.img_to_array(img)
             x = np.expand_dims(x, axis=0)
-            x = preprocess_input(x)
-            features = self.cnn_model.predict(x)
+            x = preprocess_input(x) # standardize RGB frames and preprocessing
 
+            # generate features and save them
+            features = self.cnn_model.predict(x)
             sequence.append(features[0])  # get the relevant 1-d np array (features is 2-d)
 
         np.save(savepath, sequence)

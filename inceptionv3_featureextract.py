@@ -17,8 +17,7 @@ def load_cnn_model():
     """
     base_model = InceptionV3(weights='imagenet', include_top=True)
 
-    # print(base_model.summary())
-    # print base_model.get_layer('global_max_pooling2d_1').output
+    # get the feature outputs of second-to-last layer (final FC layer)
     outputs = base_model.get_layer('avg_pool').output
 
     cnn_model = Model(inputs=base_model.input, outputs=outputs)
@@ -33,9 +32,10 @@ if __name__ == "__main__":
     dataset = DataSet(cnn_model)
 
     # generate InceptionV3 features and time it
-    tic = time.time()
+    currtime = time.time()
 
     for ind, sample in enumerate(dataset.data):
+        # save the sequences of frame features to npy files for eventual model training
         path = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(seq_length) + '-features.npy')
 
         if os.path.isfile(path):
@@ -46,4 +46,4 @@ if __name__ == "__main__":
             print("Generating and saving sequence: {}".format(ind))
             sequence = dataset.extract_seq_features(sample)
 
-    print("Time Elapsed: {}".format(time.time() - tic))
+    print("Time Elapsed: {}".format(time.time() - currtime))

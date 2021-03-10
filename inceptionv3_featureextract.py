@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     for ind, sample in enumerate(dataset.data):
         # save the sequences of frame features to npy files for eventual model training
-        path = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(seq_length) + '-InceptionV3_features.npy')
+        path = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(seq_length) + '-features.npy')
 
         if os.path.isfile(path):
             print(sample)

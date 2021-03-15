@@ -44,6 +44,6 @@ if __name__ == "__main__":
         else:
             print(sample)
             print("Generating and saving sequence: {}".format(ind))
-            sequence = dataset.extract_seq_features(sample)
+            sequence = dataset.extract_seq_features(sample, Xception=True)
 
     print("Time Elapsed: {}".format(time.time() - currtime))

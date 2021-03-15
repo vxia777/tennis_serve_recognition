@@ -163,16 +163,20 @@ class DataSet():
         return frames
 
 
-    def extract_seq_features(self, sample):
+    def extract_seq_features(self, sample, Xception=False):
         """
         This function, used in get_extracted_sequence(), returns
         a sequence of CNN-generated features for frames and saves to .npy file
 
+        Xception := boolean param denoting whether to extract features from Xception model. Default InceptionV3
         :return: sequence of CNN-generated features from the input frame pixels
         """
-
-        savepath = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(self.seq_length) + \
-        '-features')
+        if Xception:
+            savepath = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(self.seq_length) + \
+                                    '-Xception_features')
+        else:
+            savepath = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(self.seq_length) + \
+            '-features')
 
         # sample the sequence of frames from the video
         frames = self.get_frames_for_sample(sample)

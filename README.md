@@ -8,5 +8,6 @@ model -- folder detailing relevant RNN LSTM model used as well as parameters use
 dataprep_split.py -- script to generate balanced randomized train/dev/test sets.  
 data_utils.py -- utility functions for manipulating raw video data as well as abstraction of dataset class used in model training/evaluations  
 inceptionv3_featureextract.py -- generation of sequenced frame features using InceptionV3  
-xception_featureextract.py -- generation of sequenced frame features using Xception
+xception_featureextract.py -- generation of sequenced frame features using Xception  
 train_eval_script.ipynb -- script for LSTM model training and evaluation of output for the sequenced CNN-generated features  
+tune_hyperparams.ipynb -- script for hyperparam tuning the LSTM model

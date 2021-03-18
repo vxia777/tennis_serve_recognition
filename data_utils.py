@@ -253,100 +253,7 @@ class DataSet():
             print("%s: %.2f" % (class_prediction[0], class_prediction[1]))
 
 
-    #@threadsafe_generator
-    def frame_generator(self, batch_size, train_validate):
-        """
-        This function creates a generator that we will use during training.
-        """
-
-        # random.seed(1)  # for reproducibility in experiments?
-
-        # not using actual test data, using validation data during training
-        train, validation, _ = self.split_dataset()
-        data = train if train_validate == 'train' else validation
-
-        print("Creating %s generator with %d samples.\n" % (train_validate, len(data)))
-
-        if train_validate == 'train':
-            while 1:
-                X, y = [], []
-
-                # generate samples for batch (of size batch_size)
-                for _ in range(batch_size):
-
-                    sequence = None
-
-                    # randomly pick a datapoint (what if we have already picked point in batch?)
-                    sample = random.choice(data)
-
-                    sequence = self.get_extracted_sequence(sample)
-
-                    if sequence is None:
-                        raise ValueError("Unable to find sequence!")
-
-                    X.append(sequence)
-
-                    class_label = sample[1]  # from csv line
-                    y.append(self.get_class_one_hot(class_label))
-
-                # yield batches as necessary to fit_generator() fxn
-                yield np.array(X), np.array(y)
-        else:
-            while 1:
-                X, y = [], []
-                for i in range(len(data)):
-
-                    sequence = None
-
-                    sample = data[i]
-
-                    sequence = self.get_extracted_sequence(sample)
-
-                    if sequence is None:
-                        raise ValueError("Unable to find sequence!")
-
-                    X.append(sequence)
-
-                    class_label = sample[1]  # from csv line
-                    y.append(self.get_class_one_hot(class_label))
-
-                # print "yielding entire validation set"
-                yield np.array(X), np.array(y)
-
-
-    def generate_data(self, train_validate_test):
-        """
-        This function generates desired training data
-        """
-        train, validation, test = self.split_dataset()
-        if train_validate_test == 'train':
-            data = train
-        elif train_validate_test == 'validation':
-            data = validation
-        elif train_validate_test == 'test':
-            data = test
-
-        X, y = [], []
-
-        # loop over list of validation samples, and create sequences
-        for sample in data:
-
-            sequence = None
-
-            sequence = self.get_extracted_sequence(sample)
-
-            if sequence is None:
-                raise ValueError("Unable to find sequence!")
-
-            X.append(sequence)
-
-            class_label = sample[1]  # from csv line
-            y.append(self.get_class_one_hot(class_label))
-
-        # print "yielding entire validation set"
-        return np.array(X), np.array(y)
-
-    def get_extracted_sequences(self, train_validate_test):
+    def get_extracted_sequences(self, train_validate_test, model_num):
         """
         This function gets extracted sequences saved as npy
         """
@@ -363,7 +270,10 @@ class DataSet():
         # loop over list of validation samples, and create sequences
         for sample in data:
             sequence = None
-            sequence_path = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(self.seq_length) + '-features.npy')
+            if (model_num == 1):
+                sequence_path = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(self.seq_length) + '-features.npy')
+            else:
+                sequence_path = os.path.join('data', 'sequences', sample[1], sample[2] + '-' + str(self.seq_length) + '-Xception_features.npy')  
             sequence = np.load(sequence_path)
 
             if sequence is None:
